@@ -1,226 +1,226 @@
-🧨 Subdomain Takeover Hunting – Complete Workflow
+# 🧨 Subdomain Takeover Hunting – Complete Workflow
 
-This repository documents my personal subdomain takeover methodology, including tools, commands, logic, and manual verification steps.
-It serves as a repeatable checklist for bug bounty, CTFs, and learning DNS misconfigurations.
+This repository documents my **personal subdomain takeover methodology**, including tools, commands, logic, and manual verification steps.
 
-🧠 What is Subdomain Takeover?
+It serves as a **repeatable checklist** for:
+- Bug Bounty
+- CTFs
+- Learning DNS & cloud misconfigurations
 
-A subdomain takeover occurs when a subdomain points (via DNS) to a third-party service (AWS, GitHub Pages, Azure, etc.) that is no longer claimed, allowing an attacker to register that resource and gain control over the subdomain.
+---
 
-This is typically caused by:
+## 🧠 What is Subdomain Takeover?
 
-Dangling DNS records
+A **subdomain takeover** occurs when a subdomain points (via DNS) to a **third-party service** (AWS, GitHub Pages, Azure, etc.) that is **no longer claimed**, allowing an attacker to register that resource and gain control over the subdomain.
 
-Deleted cloud resources
+Root causes:
+- Dangling DNS records
+- Deleted cloud resources
+- Improper service deprovisioning
 
-Improper deprovisioning
+---
 
-🛠️ Tools Used
-Tool	Purpose
-subfinder	Subdomain enumeration
-anew	Deduplication
-dig	Low-level DNS inspection
-nslookup	Quick DNS checks
-subzy	Automated takeover detection
-subjack	Signature-based detection
-can-i-takeover.py	Manual takeover validation
-nuclei	Automated confirmation using templates
-🔁 Overall Workflow
-Subdomain Enumeration
-        ↓
-Deduplication
-        ↓
-DNS Analysis
-        ↓
-Takeover Detection
-        ↓
-Manual Verification
-        ↓
-Automation & Proof
+## 🛠️ Tools Used
 
-1️⃣ Subdomain Enumeration – subfinder
-Purpose
+| Tool | Purpose |
+|------|--------|
+| subfinder | Subdomain enumeration |
+| anew | Deduplication |
+| dig | Low-level DNS inspection |
+| nslookup | Quick DNS checks |
+| subzy | Automated takeover detection |
+| subjack | Signature-based detection |
+| can-i-takeover.py | Manual takeover validation |
+| nuclei | Automated confirmation |
 
-Collect as many subdomains as possible from passive sources.
+---
 
-Command
+## 🔁 Overall Workflow
+
+subfinder
+↓
+anew
+↓
+dig / nslookup
+↓
+subzy / subjack
+↓
+can-i-takeover.py
+↓
+nuclei
+
+
+---
+
+## 1️⃣ Subdomain Enumeration – subfinder
+
+### Purpose
+Collect subdomains using passive sources.
+
+### Command
+```bash
 subfinder -d target.com -all -silent > subs.txt
-
+```
 Notes
 
--all enables all sources
+-all → enable all sources
 
--silent removes banner noise
+-silent → clean output
 
-Output may contain duplicates → use anew
+Output may contain duplicates
 
 2️⃣ Deduplication – anew
 Purpose
 
-Ensure clean input for scanning tools.
-
-Command
+Remove duplicate subdomains.
+```bash
 cat subs.txt | anew clean_subs.txt
+```
 
-Why it matters
+Why Important
 
-Prevents redundant scanning
+Prevents repeated scans
 
 Reduces false positives
 
-Avoids tool crashes
+Improves tool stability
 
-3️⃣ DNS Inspection – dig (MOST IMPORTANT)
+3️⃣ DNS Inspection – dig (CRITICAL STEP)
 Purpose
 
-Understand how DNS resolves the subdomain
+Understand how DNS resolves the subdomain.
 
 Commands
+```bash
 dig sub.target.com
 dig sub.target.com CNAME
 dig sub.target.com A
+```
+Takeover Indicators
 
-What to Look For
-
-CNAME pointing to third-party services
+CNAME → third-party service
 
 No A record
 
-NXDOMAIN or empty responses
+NXDOMAIN / empty response
 
-Example (Potential Takeover)
+Example
+```bash
 blog.target.com. 300 IN CNAME blog-target.s3.amazonaws.com.
-
-
-If the S3 bucket does not exist, takeover may be possible.
+```
+If the bucket does not exist → possible takeover
 
 4️⃣ Quick DNS Check – nslookup
 Purpose
 
-Simplified DNS lookup (human-friendly)
+Simple DNS resolution check.
 
 Command
+```bash
 nslookup sub.target.com
-
+```
 Red Flags
+```bash
 *** Can't find sub.target.com: Non-existent domain
-
-
-But CNAME still exists → suspicious configuration.
+```
+CNAME exists but resource is gone → suspicious
 
 5️⃣ Automated Detection – subzy
 Purpose
 
-Scan subdomains against known takeover fingerprints.
+Scan for known takeover fingerprints.
 
 Command
+```bash
 subzy run --targets clean_subs.txt
+```
+Notes
 
-Strengths
-
-Actively maintained
-
-Lower false positives
-
-Fast scanning
-
-Limitation
+Fast and maintained
 
 Always manually verify results
 
-6️⃣ Signature Scanning – subjack
+6️⃣ Signature Scan – subjack
 Purpose
 
-Legacy takeover scanner using fingerprints.
+Detect takeovers using fingerprints.
 
 Command
+```bash
 subjack -w clean_subs.txt -t 50 -ssl -c fingerprints.json -o subjack.txt
+```
+Warning
 
-Notes
+Produces false positives
 
-Produces many false positives
-
-Use only as secondary confirmation
+Use only as supporting evidence
 
 7️⃣ Manual Validation – can-i-takeover.py
 Purpose
 
-Confirm whether the service is actually claimable
+Check if the service is actually claimable.
 
 Command
+```bash
 python3 can-i-take-over.py -u sub.target.com
+```
+Insight
 
-Output Insight
+Confirms vulnerable providers
 
-Identifies vulnerable providers
-
-Tells if takeover is theoretically possible or protected
+Distinguishes protected services
 
 8️⃣ Automated Confirmation – nuclei
 Purpose
 
-Final validation using official takeover templates.
+Final validation using official templates.
 
 Command
+```bash
 nuclei -l clean_subs.txt -t nuclei-templates/takeovers/ -severity medium,high
-
-Why nuclei is important
+```
+Why Nuclei
 
 Trusted by bug bounty programs
 
-Standardized detection
+Consistent results
 
-Good PoC evidence
+Good PoC support
 
 🚩 Common Takeover Providers
-Provider	Risk Level
+Provider	Risk
 Amazon S3	High
 GitHub Pages	High
 Azure Web Apps	High
 Heroku	Medium
 Fastly	Medium
-CloudFront	Low (harder)
-❌ Common Beginner Mistakes
+CloudFront	Low
+❌ Common Mistakes
 
-Trusting tool output blindly
+Trusting tools blindly
 
 Skipping dig analysis
 
 Reporting protected services
 
-Not proving control (no PoC)
+No proof of control
 
-Reporting false positives
+Reporting 404 pages as takeovers
 
 ✅ Valid Takeover Checklist
 
-Before reporting:
-
  CNAME points to third-party service
 
- Resource is unclaimed / deleted
+ Resource is unclaimed
 
- Error message confirms missing resource
+ Error confirms missing resource
 
- Service allows registration
+ Service allows claiming
 
- PoC screenshots available
-
-📌 Learning Notes
-
-DNS understanding > tools
-
-Manual verification > automation
-
-Takeover ≠ just 404 page
-
-Proof of control is mandatory
+ Proof-of-Concept available
 
 ⚠️ Disclaimer
 
-This methodology is for educational purposes only.
-Only test domains you own or are explicitly authorized to test under a bug bounty or legal scope.
+This content is for educational purposes only.
+Only test domains you own or are explicitly authorized to test.
 
-⭐ Final Tip
-
-If dig doesn’t make sense → the takeover isn’t real.
